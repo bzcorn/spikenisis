@@ -1,0 +1,63 @@
+service: aws-python3
+provider:
+  name: aws
+  runtime: python3.7
+  iamManagedPolicies:
+    - 'arn:aws:iam::aws:policy/AWSLambdaFullAccess'
+    - 'arn:aws:iam::aws:policy/AmazonKinesisFullAccess'
+  stage: dev
+  region: us-east-1
+functions:
+  eventHandler:
+    handler: handler.eventHandler
+    reservedConcurrency: 1
+    timeout: 120
+    memorySize: 256
+    events:
+      - stream:
+        arn:
+        Fn::GetAtt:
+          - NewResource
+          - Arn
+        batchSize: 100
+        startingPosition: TRIM_HORIZON
+        enabled: True
+#      - schedule:
+#          rate: rate(1 minute)
+  createSubscriber:
+    handler: api.createSubscriber
+    timeout: 30
+    events:
+      - http:
+          path: create/namespace/{namespace}/event/{event}/subscriber/{subscriber}
+          method: post
+  deleteSubscriber:
+    handler: api.deleteSubscriber
+    timeout: 30
+    events:
+      - http:
+          path: create/namespace/{namespace}/event/{event}/subscriber/{subscriber}
+          method: delete
+resources:
+  Resources:
+    NewResource:
+      Type: AWS::Kinesis::Stream
+      Properties:
+        Name: twitterStream
+        RetentionPeriodHours: 24
+        ShardCount: 1
+    DynamoTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: "namespace"
+            AttributeType: "S"
+          - AttributeName: "event_name"
+            AttributeType: "S"
+        BillingMode: "PAY_PER_REQUEST"
+        KeySchema:
+        - AttributeName: "namespace"
+          KeyType: "HASH"
+        - AttributeName: "event_name"
+          KeyType: "RANGE"
+        TableName: "twitterTable"
